@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NVDA Stock Analysis: Master Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        :root {
+            /* Color Palette */
+            --primary: #76b900; /* Nvidia Green */
+            --dark: #1a1a1a;
+            --light-bg: #eef2f5;
+            --card-bg: #ffffff;
+            --text-main: #333;
+            --text-muted: #666;
+            
+            /* SWOT / Risk Colors */
+            --risk-high: #d32f2f;
+            --risk-med: #fbc02d;
+            --strength: #4caf50;  /* Green */
+            --weakness: #ff9800;  /* Orange */
+            --opportunity: #2196f3; /* Blue */
+            --threat: #f44336;    /* Red */
+        }
+
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            background-color: var(--light-bg); 
+            margin: 0; 
+            padding: 20px; 
+            color: var(--text-main); 
+        }
+
+        /* --- HEADER --- */
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 25px; 
+            padding-bottom: 15px; 
+            border-bottom: 2px solid #ddd;
+        }
+        .header h1 { margin: 0; color: var(--dark); font-size: 1.8rem; }
+        .header .meta { font-size: 0.9rem; color: var(--text-muted); }
+        .price-box { text-align: right; }
+        .price-tag { font-size: 2rem; font-weight: 800; color: var(--dark); line-height: 1; }
+        .price-change { font-size: 1rem; color: var(--risk-high); font-weight: 600; }
+
+        /* --- LAYOUT GRIDS --- */
+        .main-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); 
+            gap: 20px; 
+            margin-bottom: 20px; 
+        }
+        
+        /* Specialized Grid for Risk Section */
+        .risk-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: center;
+        }
+        @media (max-width: 768px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .risk-grid { grid-template-columns: 1fr; }
+        }
+
+        /* --- CARDS --- */
+        .card { 
+            background: var(--card-bg); 
+            padding: 20px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+            height: 100%;
+            box-sizing: border-box;
+        }
+        .card h3 { 
+            margin-top: 0; 
+            border-bottom: 3px solid var(--primary); 
+            padding-bottom: 8px; 
+            display: inline-block; 
+            margin-bottom: 15px;
+        }
+
+        /* --- METRICS & TEXT --- */
+        .metric-row { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 12px; 
+            border-bottom: 1px solid #f0f0f0; 
+            padding-bottom: 4px; 
+        }
+        .metric-label { color: var(--text-muted); font-size: 0.95rem; }
+        .metric-val { font-weight: 700; color: var(--dark); }
+
+        .tech-levels { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 15px; }
+        .level { padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; }
+        .level.support { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+        .level.resistance { background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+
+        /* --- RISK SECTION STYLES --- */
+        .chart-container {
+            position: relative;
+            height: 280px; 
+            width: 100%;
+        }
+        .risk-alert {
+            background-color: #fff8e1;
+            border-left: 4px solid var(--risk-med);
+            padding: 15px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            border-radius: 0 4px 4px 0;
+        }
+        .risk-alert strong { color: #e65100; display: block; margin-bottom: 5px; }
+
+        /* --- SWOT GRID STYLES --- */
+        .swot-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        .swot-box {
+            padding: 15px;
+            border-radius: 8px;
+            background: #fafafa;
+            border-left-width: 6px;
+            border-left-style: solid;
+        }
+        .swot-box h4 { margin: 0 0 10px 0; text-transform: uppercase; font-size: 0.9rem; letter-spacing: 1px; }
+        .swot-box ul { margin: 0; padding-left: 20px; font-size: 0.9rem; line-height: 1.5; color: #444; }
+        
+        /* SWOT Color coding */
+        .swot-s { border-left-color: var(--strength); } .swot-s h4 { color: var(--strength); }
+        .swot-w { border-left-color: var(--weakness); } .swot-w h4 { color: var(--weakness); }
+        .swot-o { border-left-color: var(--opportunity); } .swot-o h4 { color: var(--opportunity); }
+        .swot-t { border-left-color: var(--threat); } .swot-t h4 { color: var(--threat); }
+
+        /* --- VERDICT --- */
+        .verdict {
+            background: var(--dark);
+            color: #fff;
+            text-align: center;
+            padding: 25px;
+            border-radius: 12px;
+            margin-top: 30px;
+        }
+        .verdict h2 { color: var(--primary); margin-top: 0; }
+        .verdict-action { font-size: 1.2rem; font-weight: bold; margin-bottom: 10px; }
+
+        footer { text-align: center; margin-top: 40px; color: #999; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <h1>NVIDIA (NVDA) Strategic Dashboard</h1>
+            <div class="meta">Analysis Date: Nov 26, 2025 | Source: Financial Reports & Market Data</div>
+        </div>
+        <div class="price-box">
+            <div class="price-tag">$180.26</div>
+            <div class="price-change">▼ 12.8% (Correction Phase)</div>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <div class="card">
+            <h3>Financial Performance (Q3 FY26)</h3>
+            <div class="metric-row"><span class="metric-label">Revenue</span><span class="metric-val">$57.0B (+62% YoY)</span></div>
+            <div class="metric-row"><span class="metric-label">Gross Margin</span><span class="metric-val">73.6%</span></div>
+            <div class="metric-row"><span class="metric-label">Net Income</span><span class="metric-val">$31.9B</span></div>
+            <div class="chart-container" style="height: 200px;">
+                <canvas id="financialChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Technical Setup & Valuation</h3>
+            <div class="metric-row"><span class="metric-label">P/E Ratio (Fwd)</span><span class="metric-val">32x</span></div>
+            <div class="metric-row"><span class="metric-label">PEG Ratio</span><span class="metric-val">1.1 (Attractive)</span></div>
+            <div class="metric-row"><span class="metric-label">RSI (14)</span><span class="metric-val">38 (Approaching Oversold)</span></div>
+            
+            <div style="margin-top: 20px;">
+                <strong>Critical Price Levels:</strong>
+                <div class="tech-levels">
+                    <span class="level resistance">RES: $200 (Psychological)</span>
+                    <span class="level resistance">RES: $188 (50-Day MA)</span>
+                </div>
+                <div class="tech-levels">
+                    <span class="level support">SUP: $175 (Recent Low)</span>
+                    <span class="level support">SUP: $164 (Major Floor)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 20px;">
+        <h3>Risk Radar: The "Whale" & TPU Threat</h3>
+        <div class="risk-grid">
+            <div class="chart-container">
+                <canvas id="riskRadarChart"></canvas>
+            </div>
+            
+            <div>
+                <div class="risk-alert">
+                    <strong>⚠️ Primary Threat: The Meta/Google Alliance</strong>
+                    <p>Recent reports suggest Meta may shift workloads to Google's TPUs. This creates a "double threat":</p>
+                    <ul style="margin:0; padding-left:15px;">
+                        <li><strong>Loss of Volume:</strong> Meta is a top-4 customer.</li>
+                        <li><strong>Loss of Moat:</strong> If PyTorch is optimized for TPUs, the CUDA software advantage weakens.</li>
+                    </ul>
+                </div>
+                <div style="margin-top: 15px;">
+                    <small><strong>Revenue Concentration:</strong></small>
+                    <div style="height:10px; background:#eee; border-radius:5px; margin-top:5px; overflow:hidden;">
+                        <div style="width:45%; background:var(--risk-high); height:100%; float:left;" title="45% from Top 4 Customers"></div>
+                    </div>
+                    <small style="color:var(--risk-high);">45% of Revenue from 4 Companies</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Comprehensive SWOT Analysis</h3>
+        <div class="swot-container">
+            <div class="swot-box swot-s">
+                <h4>Strengths (Internal)</h4>
+                <ul>
+                    <li><strong>Margin Dominance:</strong> 73.6% Gross Margins are unheard of for hardware.</li>
+                    <li><strong>Blackwell Lead:</strong> New B200 chips are 12-18 months ahead of AMD MI325.</li>
+                    <li><strong>Cash Pile:</strong> ~$60B available for R&D and defensive acquisitions.</li>
+                </ul>
+            </div>
+
+            <div class="swot-box swot-w">
+                <h4>Weaknesses (Internal)</h4>
+                <ul>
+                    <li><strong>Supply Bottlenecks:</strong> Completely dependent on TSMC CoWoS capacity.</li>
+                    <li><strong>Pricing Fatigue:</strong> Customers (Hyperscalers) are signaling CaPex exhaustion.</li>
+                </ul>
+            </div>
+
+            <div class="swot-box swot-o">
+                <h4>Opportunities (External)</h4>
+                <ul>
+                    <li><strong>Sovereign AI:</strong> Nations (Japan, France, UAE) building domestic AI clouds.</li>
+                    <li><strong>Physical AI:</strong> "Project GROOT" for humanoid robots opens a new market.</li>
+                    <li><strong>Software SaaS:</strong> NVIDIA AI Enterprise recurring revenue.</li>
+                </ul>
+            </div>
+
+            <div class="swot-box swot-t">
+                <h4>Threats (External)</h4>
+                <ul>
+                    <li><strong>Custom Silicon (ASICs):</strong> Google TPUs, AWS Trainium, Microsoft Maia.</li>
+                    <li><strong>Geopolitics:</strong> Potential China/Taiwan conflict disrupts 100% of supply.</li>
+                    <li><strong>Regulatory:</strong> Antitrust probes in EU/France regarding CUDA lock-in.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="verdict">
+        <h2>Investment Verdict</h2>
+        <div class="verdict-action">BUY THE DIP (Accumulate)</div>
+        <p>The market is pricing in the "TPU Threat" as a disaster, but the data shows it is a slow-moving transition.<br>
+        NVIDIA's fundamentals remain best-in-class.</p>
+        <hr style="border:0; border-top:1px solid #555; margin:15px 0;">
+        <small><strong>Buy Zone:</strong> $170 - $180 | <strong>Stop Loss:</strong> Close below $160</small>
+    </div>
+
+    <footer>
+        <p>Generated by AI • Not Financial Advice • For Educational Purposes Only</p>
+    </footer>
+
+    <script>
+        // 1. Financial Bar Chart
+        const ctxFin = document.getElementById('financialChart').getContext('2d');
+        new Chart(ctxFin, {
+            type: 'bar',
+            data: {
+                labels: ['Q3 FY25', 'Q4 FY25', 'Q1 FY26', 'Q2 FY26', 'Q3 FY26'],
+                datasets: [{
+                    label: 'Revenue ($ Billions)',
+                    data: [35.1, 40.5, 42.0, 46.7, 57.0],
+                    backgroundColor: '#76b900',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: false } }
+            }
+        });
+
+        // 2. Risk Radar Chart
+        const ctxRisk = document.getElementById('riskRadarChart').getContext('2d');
+        new Chart(ctxRisk, {
+            type: 'radar',
+            data: {
+                labels: [
+                    'Customer Concentration', 
+                    'Custom Silicon (TPUs)', 
+                    'Geopolitics (China)', 
+                    'Competitor Hardware (AMD)', 
+                    'Valuation'
+                ],
+                datasets: [{
+                    label: 'Risk Intensity (0-10)',
+                    data: [9, 8.5, 7, 5, 6],
+                    backgroundColor: 'rgba(211, 47, 47, 0.2)',
+                    borderColor: '#d32f2f',
+                    pointBackgroundColor: '#d32f2f',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: { color: '#ddd' },
+                        grid: { color: '#eee' },
+                        suggestedMin: 0,
+                        suggestedMax: 10,
+                        pointLabels: {
+                            font: { size: 11, weight: 'bold' }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
